@@ -1,0 +1,8 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"dlib": "0.21.0",
+		"dvector": "0.0.5",
+		"earcutd": "0.0.2"
+	}
+}

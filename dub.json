@@ -1,0 +1,15 @@
+{
+        "authors": [
+                "Sean Khan"
+        ],
+        "copyright": "Copyright © 2021, Sean Khan",
+        "dependencies": {
+                "dlib": "~>0.21.0-beta1",
+                "earcutd": "0.0.2"
+        },
+        "description": "GPS Tracker AI",
+        "license": "proprietary",
+        "name": "tracker_ai",
+        "targetType": "executable",
+	"dflags-ldc": ["-mcpu=native", "-O3" ,"-noboundscheck"]
+}
