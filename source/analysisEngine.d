@@ -2470,7 +2470,7 @@ private :
 		auto sj_l1 = this.sweeps[j][$-1];																	write("4: ");writeln(sj_l1);
 
 		auto l00 = this.allLines[si_l0];																	write("5: ");writeln(l00);
-		auto l01 = this.allLines[si_l1];																	write("6: ");writeln(l01); writeln(this.allLines.length); writeln(sj_l0);
+		auto l01 = this.allLines[si_l1];																	write("6: ");writeln(l01); writeln(this.allLines.length); writeln(sj_l0); writeln(this.allLines[sj_l0]);
 		auto l10 = this.allLines[sj_l0];																	write("7: ");writeln(l10);
 		auto l11 = this.allLines[sj_l1];																	write("8: ");writeln(l11);
 
@@ -3407,6 +3407,7 @@ private :
 		return /+mean(all_minDists) +/ all_minDists.maxElement;
 	}
 
+	/+
 	double calculate_avgSweepDist_pairwise(int [] fld) {																// write("checking typical distace for : "); writeln(fld);
 																											// return the maximum distance between sweeps...
 																											//// when this is called, seeps are ALREADY abreast.
@@ -3685,19 +3686,20 @@ private :
 
 		+/
 
-		int[][] pnts ;
-		pnts.length = fld.length;
+		int[][] pnk ;
+		pnk.length = fld.length;
 
-		enum threadCount = 2;
-		auto prTaskPool = new TaskPool(threadCount);
+		// enum threadCount = 2;
+		// auto prTaskPool = new TaskPool(threadCount);
 
+		/+
 		scope (exit) {
 			prTaskPool.finish();
-		}
+		} +/
 
-		enum workUnitSize = 100;
+		// enum workUnitSize = 100;
 
-		foreach(i, fLine; prTaskPool.parallel(fld, workUnitSize)) {
+		for(int i = 0; i < fld.length; i++) {
 
 			auto sweepIdx = fld[i];
 			auto sweepI = this.sweeps[sweepIdx];
@@ -3706,7 +3708,7 @@ private :
 
 				auto lineI = this.allLines[sweepI[lIdx]];
 				for ( int li =  lineI[0]; li <= lineI[1]; li++) {
-					pnts[i] ~= li;
+					pnk[i] ~= li;
 				}
 
 
@@ -3715,31 +3717,24 @@ private :
 
 		}																									// writeln(-3);
 
-		ds.length = (pnts[0].length - 1) * (pnts[1].length-1);												// writeln(-2);
+		ds.length = (pnk[0].length - 1) * (pnk[1].length-1);												// writeln(-2);
 
 		for(int i = 0; i < ds.length; i++) ds[i] = -9;														// set a dummy value;
 
-		prTaskPool = new TaskPool(threadCount);
 
-		scope (exit) {
-			prTaskPool.finish();
-		}
 
-		//enum workUnitSize = 1;
+		auto pnts_mod = pnk[0][0 .. pnk[0].length -1];													// writeln(-1);
 
-		auto pnts_mod = pnts[0][0 .. pnts[0].length -1];													// writeln(-1);
-
-		foreach( i, pnt; prTaskPool.parallel(pnts_mod, workUnitSize)) {										//writeln("foreach called");
-		//foreach( i, pnt; parallel(pnts_mod)) {																writeln("foreach called");
-			auto p0 = (*rd)[pnts[0][i]];																	// writeln(0);
-			auto p1 = (*rd)[pnts[0][i+1]];																	// writeln(1);
+		for ( int i = 0; i < pnk[0].length-1; i++) {
+			auto p0 = (*rd)[pnk[0][i]];																	// writeln(0);
+			auto p1 = (*rd)[pnk[0][i+1]];																	// writeln(1);
 
 			auto midPoint = [ (p0.lat +  p1.lat) / 2.0 , ( p0.lon +  p1.lon) / 2.0  ];						// writeln(1.5);
 
-			for (int j = 0; j < pnts[1].length -1; j++) {													//writeln(j);
+			for (int j = 0; j < pnk[1].length -1; j++) {													//writeln(j);
 
-				auto q0 = (*rd)[pnts[1][j]];																// writeln(2);
-				auto q1 = (*rd)[pnts[1][j+1]];																// writeln(3);
+				auto q0 = (*rd)[pnk[1][j]];																// writeln(2);
+				auto q1 = (*rd)[pnk[1][j+1]];																// writeln(3);
 				auto w = drop_geoNormal_pointToline(midPoint, q0, q1);										// writeln(4);
 				auto a = calculate_geoDistance_vincenty(w.lat, midPoint[0], w.lon, midPoint[1]);												// writeln(9);
 
@@ -3832,11 +3827,300 @@ private :
 		}
 
 	}
+	+/
 
 
 
 
 
+    double calculate_avgSweepDist_pairwise(int [] fld) {																// write("checking typical distace for : "); writeln(fld);
+																											// return the maximum distance between sweeps...
+																											//// when this is called, seeps are ALREADY abreast.
+
+
+		field.rawData [] * rd ;
+		rd = cast (field.rawData [] *)  dataSet;
+
+
+		double offsetY = londiff_global * 0.05 * this.multiplier_global;
+		double offsetX = latdiff_global * 0.05 * this.multiplier_global;
+
+		double dMax = 0;
+
+		double [] ds ;
+
+
+
+		for (int sIdx = 0; sIdx < to!int(fld.length)-1; sIdx++) {											// write("sidx is :"); writeln(sIdx);
+
+			auto sweepIdx = fld[sIdx];
+			auto sweepI = this.sweeps[sweepIdx];															// write("sweep I foind ..");writeln(sweepI);
+
+
+			for (int sJdx = sIdx+1; sJdx < to!int(fld.length); sJdx++) {									// write("sjdX is :"); writeln(sJdx);
+
+				if(sIdx == sJdx) continue;
+
+				auto sweepJdx = fld[sJdx];
+				auto sweepJ = this.sweeps[sweepJdx];														// write("sweep found : "); writeln(sweepJ);
+
+				auto d_sweepToSweep = calculate_sweepDistance ( sweepIdx, sweepJdx);
+				if ( d_sweepToSweep > 2*  this.maxLineDist) return d_sweepToSweep;
+
+				for( int lIdx = 0; lIdx <sweepI.length; lIdx ++) {
+
+					auto lineI = this.allLines[sweepI[lIdx]];												// writeln("line I found");
+					for ( int lJdx = 0; lJdx < sweepJ.length; lJdx ++) {
+
+						auto lineJ = this.allLines[sweepJ[lJdx]];											// writeln("line J found");
+						/+
+						foreach( fswp; fld) {
+
+							auto s = this.sweeps[fswp];														//write("sweep lenght is"); writeln(calculate_sweepLength(guessedField[ii]));
+
+							for (int j = 0; j < s.length; j++) {
+
+
+
+								auto p0 = (*rd) [this.allLines[s[j]][0]];
+								auto p1 = (*rd) [this.allLines[s[j]][1]];
+
+																											// this is for ...… drawing the inner line segments in a single interpolated straight line
+								for(int ij = this.allLines[s[j]][0]; ij < this.allLines[s[j]][1]; ij++) {
+
+									auto pp1 = (*rd) [ij];
+									auto pp2 = (*rd) [ij+1];
+
+									double yy1 = to!int(this.multiplier_global * (this.latMax_global - pp1.lat) + offsetX);
+									double yy2 = to!int(this.multiplier_global * (this.latMax_global - pp2.lat) + offsetX);
+									double xx1 = to!int((this.multiplier_global * (pp1.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+									double xx2 = to!int((this.multiplier_global * (pp2.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+									auto GREEN = Color4f(20.00/255.00,250.00/255.00,10.00/255.00);							//writeln(0);
+									drawLine_png(this.map,GREEN,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+
+								}
+
+
+
+							}
+
+
+
+						}
+
+						auto si = this.sweeps[sweepIdx];													//write("sweep lenght is"); writeln(calculate_sweepLength(guessedField[ii]));
+
+						for (int j = 0; j < si.length; j++) {
+
+
+
+							auto p0 = (*rd) [this.allLines[si[j]][0]];
+							auto p1 = (*rd) [this.allLines[si[j]][1]];
+
+																														// this is for ...… drawing the inner line segments in a single interpolated straight line
+							for(int ij = this.allLines[si[j]][0]; ij < this.allLines[si[j]][1]; ij++) {
+
+								auto pp1 = (*rd) [ij];
+								auto pp2 = (*rd) [ij+1];
+
+								double yy1 = to!int(this.multiplier_global * (this.latMax_global - pp1.lat) + offsetX);
+								double yy2 = to!int(this.multiplier_global * (this.latMax_global - pp2.lat) + offsetX);
+								double xx1 = to!int((this.multiplier_global * (pp1.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								double xx2 = to!int((this.multiplier_global * (pp2.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								auto VILT2 = Color4f(220.00/255.00,250.00/255.00,10.00/255.00);							//writeln(0);
+								drawLine_png(this.map,VILT2,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+
+							}
+
+
+
+						}
+
+
+						auto sj = this.sweeps[sweepJdx];													//write("sweep lenght is"); writeln(calculate_sweepLength(guessedField[ii]));
+
+						for (int j = 0; j < sj.length; j++) {
+
+
+
+							auto p0 = (*rd) [this.allLines[sj[j]][0]];
+							auto p1 = (*rd) [this.allLines[sj[j]][1]];
+
+																														// this is for ...… drawing the inner line segments in a single interpolated straight line
+							for(int ij = this.allLines[sj[j]][0]; ij < this.allLines[sj[j]][1]; ij++) {
+
+								auto pp1 = (*rd) [ij];
+								auto pp2 = (*rd) [ij+1];
+
+								double yy1 = to!int(this.multiplier_global * (this.latMax_global - pp1.lat) + offsetX);
+								double yy2 = to!int(this.multiplier_global * (this.latMax_global - pp2.lat) + offsetX);
+								double xx1 = to!int((this.multiplier_global * (pp1.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								double xx2 = to!int((this.multiplier_global * (pp2.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								auto VILT0 = Color4f(10.00/255.00,120.00/255.00,250.00/255.00);							//writeln(0);
+								drawLine_png(this.map,VILT0,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+
+							}
+
+
+
+						}
+
+																											write("distance : "); writeln(d);
+																											draw_map();  // readln;
+						+/
+
+						/+
+						calculate_geoDistance_betweenLines
+						auto d_lineToLine = calculate_linetoLineDistance(sweepI[lIdx], sweepJ[lJdx]);
+						if( d_lineToLine > 2* this.maxLineDist) { 											writeln("line to line distance : " ~ to!string(d_lineToLine));
+																											write("sweeps are : "); write(sweepIdx); write("; "); writeln(sweepJdx);
+							if( ( sweepIdx == 1 ) || ( sweepIdx == 4 ) ) {
+
+								auto s = this.sweeps[gfield[ii]];															//writeln(s);// write("sweep lenght is"); writeln(calculate_sweepLength(guessedField[ii]));
+
+								for (int j = 0; j < s.length; j++) {
+
+
+
+									auto p0 = (*rd) [this.allLines[s[j]][0]];
+									auto p1 = (*rd) [this.allLines[s[j]][1]];
+
+
+
+									double y0 = to!int(this.multiplier_global * (this.latMax_global - p0.lat) + offsetX);
+									double y1 = to!int(this.multiplier_global * (this.latMax_global - p1.lat) + offsetX);
+									double x0 = to!int((this.multiplier_global * (p0.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+									double x1 = to!int((this.multiplier_global * (p1.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+									auto CYAN0 = Color4f(0,120.00/255.00,250.00/255.00);					//writeln(0);
+									auto CYAN1 = Color4f(0,250.00/255.00,120.00/255.00);					//writeln(0);
+
+									if (i % 2 == 0) drawLine_png(this.map,CYAN0,to!int(x0),to!int(y0),to!int(x1),to!int(y1));
+									if (i % 2 == 1) drawLine_png(this.map,CYAN1,to!int(x0),to!int(y0),to!int(x1),to!int(y1));
+
+
+
+									/+
+																													// this is for ...… drawing the inner line segments in a single interpolated straight line
+									for(int ij = this.allLines[s[j]][0]; ij < this.allLines[s[j]][1]; ij++) {
+
+										auto pp1 = (*rd) [ij];
+										auto pp2 = (*rd) [ij+1];
+
+										double yy1 = to!int(this.multiplier_global * (this.latMax_global - pp1.lat) + offsetX);
+										double yy2 = to!int(this.multiplier_global * (this.latMax_global - pp2.lat) + offsetX);
+										double xx1 = to!int((this.multiplier_global * (pp1.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+										double xx2 = to!int((this.multiplier_global * (pp2.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+										auto VILT0 = Color4f(220.00/255.00,10.00/255.00,20.00/255.00);							//writeln(0);
+										auto VILT1 = Color4f(10.00/255.00,250.00/255.00,120.00/255.00);							//writeln(0);
+										auto VILT2 = Color4f(220.00/255.00,250.00/255.00,10.00/255.00);							//writeln(0);
+
+										if (i % 3 == 0) drawLine_png(this.map,VILT0,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+										else if (i % 3 == 1) drawLine_png(this.map,VILT1,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+										else if (i % 3 == 2) drawLine_png(this.map,VILT2,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+
+
+
+									}
+									+/
+
+
+								}
+
+
+
+							}
+
+							continue;
+						}
+						+/
+
+						for ( int li =  lineI[0]; li < lineI[1]; li++) {
+
+							auto liSeg = [li, li+1];												// writeln(0);
+							auto p0 = (*rd)[liSeg[0]];												// writeln(2);
+							auto p1 = (*rd)[liSeg[1]];												// writeln(3);
+
+							auto midPoint = [ (p0.lat +  p1.lat) / 2.0 , ( p0.lon +  p1.lon) / 2.0  ];												// writeln(7);
+
+
+							for ( int lj =  lineJ[0]; lj < lineJ[1]; lj++) {
+
+
+								auto ljSeg = [lj, lj+1];												// writeln(1);
+
+
+
+								auto q0 = (*rd)[ljSeg[0]];												// writeln(4);
+								auto q1 = (*rd)[ljSeg[1]];												// writeln(5);
+
+								//auto abr = calculate_abreastRatio(p0,p1,q0,q1);							write("abreast ratio is : ") ;writeln(abr);
+
+								// auto d_lineToLine = calculate_geoDistance_betweenLines(p0.lat,p1.lat, q0.lat, q1.lat, p0.lon, p1.lon, q0.lon, q1.lon);
+								// if ( d_lineToLine > 2*this.maxLineDist) continue;
+																										//// ABOVE CALCULATION IS SLOWING DOWN THE CODE. NOT NEEDED
+
+
+																										/+
+																										if ( li == lineI[1] -1 ) {
+
+								double yy1 = to!int(this.multiplier_global * (this.latMax_global - p0.lat) + offsetX);
+								double yy2 = to!int(this.multiplier_global * (this.latMax_global - p1.lat) + offsetX);
+								double xx1 = to!int((this.multiplier_global * (p0.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								double xx2 = to!int((this.multiplier_global * (p1.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								auto VILT0 = Color4f(250.00/255.00,220.00/255.00,50.00/255.00);							//writeln(0);
+								drawLine_png(this.map,VILT0,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+
+								yy1 = to!int(this.multiplier_global * (this.latMax_global - q0.lat) + offsetX);
+								yy2 = to!int(this.multiplier_global * (this.latMax_global - q1.lat) + offsetX);
+								xx1 = to!int((this.multiplier_global * (q0.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								xx2 = to!int((this.multiplier_global * (q1.lon - this.lonMin_global) + offsetY) * cos(this.latMin_global * 3.141592 / 180.00));
+								VILT0 = Color4f(250.00/255.00,220.00/255.00,50.00/255.00);							//writeln(0);
+								drawLine_png(this.map,VILT0,to!int(xx1),to!int(yy1),to!int(xx2),to!int(yy2));
+
+
+																											draw_map(); readln();
+																										}
+																										+/
+
+
+
+
+								// if ( abr < this.minOverlap) continue;
+
+								auto w = drop_geoNormal_pointToline(midPoint, q0, q1);												// writeln(8);
+								auto a = calculate_geoDistance_vincenty(w.lat, midPoint[0], w.lon, midPoint[1]);												// writeln(9);
+
+								if ( !isNaN(a) && a > 0) {
+									ds ~= a;
+								}
+							}																				// writeln(10);
+
+						}																					// writeln(11);
+
+
+					}																						// writeln(12);
+
+
+				}																							// writeln(13);
+
+			}																								// writeln(14);
+
+		}																									// write("returning distance is .."); writeln(ds);// // // readln;
+
+
+
+																											// writeln("completed. Returning :"); writeln(ds_new);
+																											//writeln(pnts); exit(0);
+
+		if( ds.length == 0) return -1;																		// even tho, there was a case of abreast calculation, it failed (lines too skew)
+																											// thus returning -1
+
+		else {																								//writeln(7); writeln(ds_new);
+			auto b = find_jenksMean(ds);																//writeln(8); writeln(b);
+			return b;
+		}
+
+	}
 
 
 
